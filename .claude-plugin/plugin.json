@@ -1,0 +1,18 @@
+{
+  "name": "toolkit",
+  "version": "0.1.0",
+  "description": "Self-contained HTML deliverable toolkit — bundles html-artifact (one-off visual deliverables), publish-html (turn a local .html into a shareable URL), for-dummies (auto-derived project intros), and move-call-chains (HTML call-chain diagrams for Sui Move packages).",
+  "author": {
+    "name": "alilloig"
+  },
+  "keywords": [
+    "html",
+    "artifact",
+    "documentation",
+    "publish",
+    "github-pages",
+    "move",
+    "diagrams"
+  ],
+  "skills": "./skills/"
+}
