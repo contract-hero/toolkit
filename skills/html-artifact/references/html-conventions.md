@@ -125,7 +125,7 @@ Notes:
 ## Collapsibles and callouts
 
 - `<details><summary>` for long appendix lookups, FAQs, or "advanced" drill-downs that would bloat the main flow.
-- `<aside class="note">`, `<aside class="warning">`, `<aside class="tip">` for in-context callouts. Place them where they matter, not in a separate "warnings" section.
+- `<aside class="note">`, `<aside class="success">`, `<aside class="warning">`, `<aside class="error">` for in-context callouts. The neutral `note` class uses `--accent` for its left rule; the three state classes swap in `--success`, `--warning`, `--error` respectively. Place callouts where they matter, not in a separate "warnings" section.
 
 ## JavaScript
 
