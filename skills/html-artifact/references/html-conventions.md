@@ -62,7 +62,65 @@ Small inline stylesheet. Conservative aesthetic.
 - **Max-width on prose**: ~70–80ch (`max-width: 72ch` or `max-width: 960px` for layouts with diagrams).
 - **Mobile-responsive** via a single `@media (max-width: 720px)` block. Don't ship more than one breakpoint unless you need it.
 - **Conservative aesthetic**: no gradients, no glass-morphism, no neon palettes, no emoji-decorated headings. Aim for "I trust this document" not "AI-styled landing page."
-- **Color palette**: pick 2–4 semantic colors max. If the artifact uses state colors (success/warning/error/neutral), keep them muted and consistent.
+- **Use the token palette below** — never hardcode hex values in component rules. Pick the 2–4 semantic colors your artifact needs *from the tokens*; if you need a state color the palette doesn't cover, extend the tokens (both branches), don't drop a raw `#hex` inline.
+
+## Dark / light mode (required)
+
+Artifacts must follow the reader's OS appearance — light by default, dark when the system is in dark mode. The mechanism is pure CSS via `prefers-color-scheme` so the artifact stays self-contained and JS-free, and it works equally well double-clicked into a standalone browser or rendered inside Vlervcode's iframe (the iframe inherits the OS preference).
+
+Drop this token block at the top of the inline `<style>` and reference the variables everywhere instead of literal hex values:
+
+```css
+/* ★ TWEAKABLE — palette aligns with Vlervcode tokens so artifacts opened
+   inside Vlervcode feel visually coherent with the app chrome. Adjust if
+   the artifact needs a different identity, but keep both branches in sync. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --fg-muted: #6e6e6e;
+  --heading-fg: #1a1a1a;
+  --accent: #1976d2;
+  --border: #e0e0e0;
+  --code-bg: #f0f0f0;
+  --code-fg: #6e3700;
+  --pre-bg: #fafafa;
+  --aside-bg: #f5f5f5;
+  --success: #2e7d32;
+  --warning: #b8862e;
+  --error: #d32f2f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --fg: #cccccc;
+    --fg-muted: #858585;
+    --heading-fg: #e8e8e8;
+    --accent: #4dabf7;
+    --border: #2a2a2a;
+    --code-bg: #2a2a2a;
+    --code-fg: #f0e8d8;
+    --pre-bg: #161616;
+    --aside-bg: #242424;
+    --success: #66bb6a;
+    --warning: #f0c674;
+    --error: #ff7676;
+  }
+}
+
+body { background: var(--bg); color: var(--fg); }
+h1, h2, h3, h4 { color: var(--heading-fg); }
+a { color: var(--accent); }
+code { background: var(--code-bg); color: var(--code-fg); }
+pre { background: var(--pre-bg); border: 1px solid var(--border); }
+```
+
+Notes:
+
+- **`color-scheme: light dark`** tells the browser to render native UI (scrollbars, form controls, default focus outline) in a matching scheme. Without it, scrollbars stay light on a dark page and look broken.
+- **Don't add a manual toggle UI.** A one-off artifact isn't worth a JS theme-switcher; the OS preference is the source of truth. The exception is artifacts where the reader *needs* a forced light view for printing — in that case use `@media print { :root { --bg: #fff; --fg: #000; ... } }`.
+- **Inline SVG must adapt too.** Use `currentColor` for strokes/text fills (`<text fill="currentColor">`, `<line stroke="currentColor">`) so SVG follows `var(--fg)`. For colored elements, set `fill="var(--accent)"` or similar — CSS variables cascade into inline SVG. Hardcoded `fill="#000"` on a dark-mode artifact is an instant tell.
+- **Test both modes before reporting done.** Easiest path: open the artifact in a browser and toggle "Emulate CSS prefers-color-scheme" in devtools (Chrome: Rendering panel). Or on macOS, flip System Settings → Appearance and reload.
 
 ## Collapsibles and callouts
 
