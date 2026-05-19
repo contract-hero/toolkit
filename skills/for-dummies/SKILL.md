@@ -317,6 +317,7 @@ After mentally completing all sections but before calling the Write tool, cross-
 - [ ] Architecture diagram accurately represents component relationships (no misleading nesting)
 - [ ] Tutorial zone reads as a continuous narrative — a new user can follow it top to bottom
 - [ ] Reference-heavy content is in appendices, not inline in the tutorial
+- [ ] Dark / light mode tokens present per [html-conventions.md → Dark / light mode (required)](../html-artifact/references/html-conventions.md) — `:root` palette, `@media (prefers-color-scheme: dark)` override, component rules use `var(--…)`, inline SVG uses `currentColor`
 
 If any check fails, re-read the source and correct.
 

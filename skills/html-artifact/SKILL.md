@@ -69,6 +69,8 @@ Before the `Write` call, cross-check:
 - [ ] All images either inline `<svg>` or base64 `data:` URIs
 - [ ] Semantic tags used (not just `<div>` everywhere)
 - [ ] Mobile-responsive (`@media (max-width: 720px)` or equivalent)
+- [ ] Dark / light mode tokens present (`:root` palette + `@media (prefers-color-scheme: dark)` override) and component rules reference them via `var(--…)` — no hardcoded hex values in CSS
+- [ ] Inline SVG uses `currentColor` for strokes/text and `var(--…)` for colored fills — no `fill="#000"` or `stroke="#000"` anywhere
 - [ ] `<title>` is descriptive, not the filename
 - [ ] Content actually benefits from HTML — re-read the medium-fit decision
 

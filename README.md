@@ -6,12 +6,12 @@ A Claude Code plugin that bundles the **self-contained HTML deliverable** skill 
 
 | Skill | Purpose |
 |---|---|
-| `html-artifact` | One-off self-contained HTML deliverable (visual reports, side-by-side comparisons, box-and-arrow diagrams, ad-hoc explainers). Reference: `references/html-conventions.md` (system fonts, conservative palette, inline SVG, no external assets). |
+| `html-artifact` | One-off self-contained HTML deliverable (visual reports, side-by-side comparisons, box-and-arrow diagrams, ad-hoc explainers). Reference: `references/html-conventions.md` (system fonts, dark/light token palette via `prefers-color-scheme`, inline SVG, no external assets). |
 | `publish-html` | Turn a local `.html` file into a shareable URL — public via GitHub Pages on `alilloig/artifacts`, sensitive via secret gist. Enforces a mandatory sensitivity question; never publishes automatically. |
 | `for-dummies` | Reads an actual codebase and generates an `*_FOR_DUMMIES.html` intro guide (architecture, prerequisites, boot sequence, common tasks). Monorepo-aware. |
 | `move-call-chains` | Generates HTML call-chain diagrams for Sui Move packages, organized as user stories. Inline SVG box-and-arrow per user story. |
 
-All four skills share the conventions in `skills/html-artifact/references/html-conventions.md` — the family aesthetic.
+Every artifact-producing skill (`html-artifact`, `for-dummies`, `move-call-chains`) loads `skills/html-artifact/references/html-conventions.md` as its REQUIRED REFERENCE — the family aesthetic. `publish-html` doesn't render HTML, only publishes existing files, so it doesn't share rendering conventions.
 
 ## Why one plugin?
 
