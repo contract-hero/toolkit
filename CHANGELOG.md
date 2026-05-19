@@ -15,7 +15,7 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ### Changed
 
-- `skills/html-artifact/references/html-conventions.md` — the "pick 2–4 semantic colors max" bullet is replaced by "use the token palette, never hardcode hex." The CSS-style section keeps its existing rules (system fonts, max-width, single mobile breakpoint, conservative aesthetic) and adds the new "Dark / light mode (required)" section beneath it.
+- `skills/html-artifact/references/html-conventions.md` — the "pick 2–4 semantic colors max" CSS-style bullet now reads "use the token palette, never hardcode hex," and a new "Dark / light mode (required)" section follows the existing CSS-style rules.
 
 ### Distribution
 
