@@ -18,7 +18,7 @@ Every artifact-producing skill (`html-artifact`, `for-dummies`, `move-call-chain
 The four skills cooperate around a shared convention file (`html-conventions.md`) and a shared mental model ("self-contained, double-click-openable, no network"). Bundling them lets:
 
 - The convention file ship once, in one canonical location.
-- Other plugins (notably [`agentic-community-college`](https://github.com/alilloig/agentic-community-college)) declare a single `claude-plugin-enabled` probe against `toolkit@contract-hero` instead of four separate `filesystem-exists` probes.
+- Other plugins (notably [`agentic-community-college`](https://github.com/contract-hero/agentic-community-college)) declare a single `claude-plugin-enabled` probe against `toolkit@contract-hero` instead of four separate `filesystem-exists` probes.
 - Consumers install the entire HTML-deliverable surface in one click.
 
 ## Install
