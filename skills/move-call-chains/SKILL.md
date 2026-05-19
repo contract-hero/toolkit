@@ -178,8 +178,9 @@ If a legacy `CALL_CHAINS.md` already exists, leave it in place (git history may 
 
 Skill-specific conventions:
 
-- **Inline SVG diagrams** with `viewBox="…" role="img" aria-label="…"`. Define one arrowhead `<marker>` once in `<defs>` and reuse via `marker-end="url(#arrow)"`.
-- **CSS classes for visibility tiers**: `.pub`, `.priv`, `.pkg`, `.ext`, `.cond`, `.evt` — drive the legend from the same stylesheet that styles diagram nodes, so visibility is style-driven, not text-driven.
+- **Inline SVG diagrams** with `viewBox="…" role="img" aria-label="…"`. Define one arrowhead `<marker>` once in `<defs>` and reuse via `marker-end="url(#arrow)"`. Strokes and text use `currentColor` so the diagram follows the dark/light theme; marker fills reference `var(--accent)` or tier tokens (see below) — never hardcoded hex.
+- **CSS classes for visibility tiers**: `.pub`, `.priv`, `.pkg`, `.ext`, `.cond`, `.evt` — define one CSS-variable token per tier per branch (light + dark), following the "Categorical / tier scales" pattern in [html-conventions.md → Extending the palette](../html-artifact/references/html-conventions.md). Drive the legend from the same stylesheet that styles diagram nodes, so visibility is style-driven, not text-driven.
+- **Dark / light verify.** Before writing the artifact, confirm: `:root` palette + `@media (prefers-color-scheme: dark)` override are present, every component rule references `var(--…)` (no raw hex), and every `<line>` / `<text>` / arrowhead either uses `currentColor` or a tier token.
 - **One `<svg>` per independent operation.** Connected operations with cross-references stay in a single `<svg>`. Keep each diagram under ~800px tall; split into sub-diagrams per logical phase if it outgrows that.
 - **Appendix tables** with `<thead>`/`<tbody>` for accessor / infrastructure / completeness coverage.
 - **`<details><summary>`** for any "advanced" notes that would otherwise bloat a story's main flow.

@@ -62,18 +62,19 @@ Small inline stylesheet. Conservative aesthetic.
 - **Max-width on prose**: ~70–80ch (`max-width: 72ch` or `max-width: 960px` for layouts with diagrams).
 - **Mobile-responsive** via a single `@media (max-width: 720px)` block. Don't ship more than one breakpoint unless you need it.
 - **Conservative aesthetic**: no gradients, no glass-morphism, no neon palettes, no emoji-decorated headings. Aim for "I trust this document" not "AI-styled landing page."
-- **Use the token palette below** — never hardcode hex values in component rules. Pick the 2–4 semantic colors your artifact needs *from the tokens*; if you need a state color the palette doesn't cover, extend the tokens (both branches), don't drop a raw `#hex` inline.
+- **Use the token palette below** — reference colors through CSS custom properties (`var(--…)`) instead of literal hex values. The one exception is `currentColor` inside inline SVG (it resolves to `var(--fg)` via the cascade). Pick the 2–4 semantic colors your artifact needs *from the tokens*; if you need a state color the palette doesn't cover, extend the tokens in both light and dark branches — don't drop a raw `#hex` inline.
 
 ## Dark / light mode (required)
 
-Artifacts must follow the reader's OS appearance — light by default, dark when the system is in dark mode. The mechanism is pure CSS via `prefers-color-scheme` so the artifact stays self-contained and JS-free, and it works equally well double-clicked into a standalone browser or rendered inside Vlervcode's iframe (the iframe inherits the OS preference).
+Artifacts must follow the reader's OS appearance — light by default, dark when the system is in dark mode. The mechanism is pure CSS via `prefers-color-scheme` so the artifact stays self-contained and JS-free, and it works whether the artifact is double-clicked into a standalone browser or rendered inside Vlervcode's `srcdoc` iframe (which inherits the OS preference). The one caveat: opaque cross-origin sandboxed iframes may not propagate the preference automatically — when in doubt, test the rendering host.
 
 Drop this token block at the top of the inline `<style>` and reference the variables everywhere instead of literal hex values:
 
 ```css
 /* ★ TWEAKABLE — palette aligns with Vlervcode tokens so artifacts opened
    inside Vlervcode feel visually coherent with the app chrome. Adjust if
-   the artifact needs a different identity, but keep both branches in sync. */
+   the artifact needs a different identity, but keep both branches in sync
+   and re-check contrast (target WCAG AA 4.5:1 for body text). */
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
@@ -87,14 +88,14 @@ Drop this token block at the top of the inline `<style>` and reference the varia
   --pre-bg: #fafafa;
   --aside-bg: #f5f5f5;
   --success: #2e7d32;
-  --warning: #b8862e;
+  --warning: #9a5b00;
   --error: #d32f2f;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1e1e1e;
     --fg: #cccccc;
-    --fg-muted: #858585;
+    --fg-muted: #9e9e9e;
     --heading-fg: #e8e8e8;
     --accent: #4dabf7;
     --border: #2a2a2a;
@@ -111,16 +112,60 @@ Drop this token block at the top of the inline `<style>` and reference the varia
 body { background: var(--bg); color: var(--fg); }
 h1, h2, h3, h4 { color: var(--heading-fg); }
 a { color: var(--accent); }
+small, figcaption, th { color: var(--fg-muted); }
 code { background: var(--code-bg); color: var(--code-fg); }
 pre { background: var(--pre-bg); border: 1px solid var(--border); }
+aside { background: var(--aside-bg); border-left: 3px solid var(--accent); padding: .6rem .9rem; }
+aside.success { border-left-color: var(--success); }
+aside.warning { border-left-color: var(--warning); }
+aside.error   { border-left-color: var(--error); }
 ```
+
+Every token in `:root` is wired into at least one component rule above — the demo is the canonical mapping. When an artifact needs a token as text color rather than as a border accent (e.g. `color: var(--warning)` for an inline status word), the light values clear WCAG AA against `--bg`; the dark values clear AA against the dark `--bg` with margin.
 
 Notes:
 
 - **`color-scheme: light dark`** tells the browser to render native UI (scrollbars, form controls, default focus outline) in a matching scheme. Without it, scrollbars stay light on a dark page and look broken.
-- **Don't add a manual toggle UI.** A one-off artifact isn't worth a JS theme-switcher; the OS preference is the source of truth. The exception is artifacts where the reader *needs* a forced light view for printing — in that case use `@media print { :root { --bg: #fff; --fg: #000; ... } }`.
+- **Don't add a manual toggle UI.** A one-off artifact isn't worth a JS theme-switcher; the OS preference is the source of truth.
 - **Inline SVG must adapt too.** Use `currentColor` for strokes/text fills (`<text fill="currentColor">`, `<line stroke="currentColor">`) so SVG follows `var(--fg)`. For colored elements, set `fill="var(--accent)"` or similar — CSS variables cascade into inline SVG. Hardcoded `fill="#000"` on a dark-mode artifact is an instant tell.
 - **Test both modes before reporting done.** Easiest path: open the artifact in a browser and toggle "Emulate CSS prefers-color-scheme" in devtools (Chrome: Rendering panel). Or on macOS, flip System Settings → Appearance and reload.
+
+### Print mode (opt-in)
+
+By default artifacts inherit their on-screen theme when printed — a dark-mode artifact prints as white-on-dark, which wastes ink and is hard to read. If print fidelity matters for the artifact (audit reports, reference cards, anything a reader might actually print), append a `@media print` block that forces every token back to its light value. The full override:
+
+```css
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #ffffff;
+    --fg: #1f1f1f;
+    --fg-muted: #6e6e6e;
+    --heading-fg: #1a1a1a;
+    --accent: #1976d2;
+    --border: #e0e0e0;
+    --code-bg: #f0f0f0;
+    --code-fg: #6e3700;
+    --pre-bg: #fafafa;
+    --aside-bg: #f5f5f5;
+    --success: #2e7d32;
+    --warning: #9a5b00;
+    --error: #d32f2f;
+  }
+}
+```
+
+If the artifact is purely on-screen (an explainer for a chat reply, a one-off comparison), skip the print block — it's noise.
+
+### Extending the palette
+
+The base tokens cover prose, links, code, callouts, and the three state colors (success/warning/error). Artifacts with more semantic dimensions need additional tokens — keep them in the same shape:
+
+- **Categorical / tier scales.** A move-call-chains diagram has six visibility tiers (`pub | priv | pkg | ext | cond | evt`); a log viewer has five severity levels. Define one token per category in both branches, named by *meaning*, not by hue: `--tier-public`, `--tier-private`, `--tier-package`, … — never `--blue`, `--red`. Drive the legend from the same stylesheet that styles the diagram nodes (style-driven, not text-driven).
+- **State + emphasis pairs.** If you need both a border accent and a text color for the same state, add `--success-fg`, `--warning-fg`, `--error-fg` alongside the base tokens — body text needs AA contrast (4.5:1), borders don't. Don't reuse a border token as a text color without checking contrast first.
+- **Diagram-only tokens.** Box fills, edge labels, marker arrowheads — name them by role (`--diagram-node-bg`, `--diagram-edge`, `--diagram-callout`) and ensure they stay distinguishable in both modes.
+
+When in doubt, run the artifact through a contrast checker (Chrome devtools → Inspect → Accessibility, or browser-extension equivalents) before declaring the palette done.
 
 ## Collapsibles and callouts
 

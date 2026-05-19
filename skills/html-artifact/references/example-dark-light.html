@@ -18,14 +18,14 @@
   --pre-bg: #fafafa;
   --aside-bg: #f5f5f5;
   --success: #2e7d32;
-  --warning: #b8862e;
+  --warning: #9a5b00;
   --error: #d32f2f;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1e1e1e;
     --fg: #cccccc;
-    --fg-muted: #858585;
+    --fg-muted: #9e9e9e;
     --heading-fg: #e8e8e8;
     --accent: #4dabf7;
     --border: #2a2a2a;
@@ -58,9 +58,10 @@ code { background: var(--code-bg); color: var(--code-fg); padding: .1em .35em; b
 pre { background: var(--pre-bg); border: 1px solid var(--border); padding: .8rem; border-radius: 4px; overflow-x: auto; }
 pre code { background: transparent; color: inherit; padding: 0; }
 aside { background: var(--aside-bg); border-left: 3px solid var(--accent); padding: .6rem .9rem; margin: 1rem 0; border-radius: 0 4px 4px 0; }
+aside.note    { border-left-color: var(--accent); }
 aside.success { border-left-color: var(--success); }
 aside.warning { border-left-color: var(--warning); }
-aside.error { border-left-color: var(--error); }
+aside.error   { border-left-color: var(--error); }
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
 th { color: var(--fg-muted); font-weight: 600; }
@@ -99,6 +100,31 @@ figcaption { color: var(--fg-muted); font-size: .9em; margin-top: .4rem; }
       </g>
     </svg>
     <figcaption>SVG strokes/text use <code>currentColor</code>; fills use <code>var(--*)</code>.</figcaption>
+  </figure>
+</section>
+
+<section id="diagram">
+  <h2>Box-and-arrow diagram</h2>
+  <p>The canonical pattern for box-and-arrow visualizations (call-chains, flow diagrams): <code>&lt;rect&gt;</code> fills reference role tokens, <code>&lt;line&gt;</code> strokes and <code>&lt;text&gt;</code> fills use <code>currentColor</code>, and the arrowhead <code>&lt;marker&gt;</code> defines its fill once in <code>&lt;defs&gt;</code>.</p>
+  <figure>
+    <svg viewBox="0 0 480 80" width="480" height="80" role="img" aria-label="Box-and-arrow flow: input → process → output">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="system-ui, sans-serif" font-size="12" fill="currentColor">
+        <rect x="10"  y="20" width="100" height="40" fill="var(--aside-bg)" stroke="currentColor" stroke-width="1" rx="4"/>
+        <text x="60"  y="44" text-anchor="middle">input</text>
+        <line x1="115" y1="40" x2="185" y2="40" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="190" y="20" width="100" height="40" fill="var(--aside-bg)" stroke="currentColor" stroke-width="1" rx="4"/>
+        <text x="240" y="44" text-anchor="middle">process</text>
+        <line x1="295" y1="40" x2="365" y2="40" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="370" y="20" width="100" height="40" fill="var(--aside-bg)" stroke="currentColor" stroke-width="1" rx="4"/>
+        <text x="420" y="44" text-anchor="middle">output</text>
+      </g>
+    </svg>
+    <figcaption>Box outlines, arrow strokes, arrowhead fill, and labels all follow <code>var(--fg)</code> via <code>currentColor</code>. Box backgrounds use <code>var(--aside-bg)</code> so they sit gently above <code>var(--bg)</code> in both modes.</figcaption>
   </figure>
 </section>
 

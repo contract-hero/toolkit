@@ -11,7 +11,7 @@ A Claude Code plugin that bundles the **self-contained HTML deliverable** skill 
 | `for-dummies` | Reads an actual codebase and generates an `*_FOR_DUMMIES.html` intro guide (architecture, prerequisites, boot sequence, common tasks). Monorepo-aware. |
 | `move-call-chains` | Generates HTML call-chain diagrams for Sui Move packages, organized as user stories. Inline SVG box-and-arrow per user story. |
 
-All four skills share the conventions in `skills/html-artifact/references/html-conventions.md` — the family aesthetic.
+Every artifact-producing skill (`html-artifact`, `for-dummies`, `move-call-chains`) loads `skills/html-artifact/references/html-conventions.md` as its REQUIRED REFERENCE — the family aesthetic. `publish-html` doesn't render HTML, only publishes existing files, so it doesn't share rendering conventions.
 
 ## Why one plugin?
 
