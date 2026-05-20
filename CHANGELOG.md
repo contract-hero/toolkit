@@ -2,6 +2,16 @@
 
 All notable changes to the `toolkit` plugin are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`move-call-chains` Step 1 now extracts the function inventory from the move-analyzer LSP** (`mcp__plugin_sui-pilot_move-lsp__move_document_symbols`) instead of the regex script. The regex matched function declarations line-by-line and silently dropped `public entry fun`, `macro fun`, `public(package) macro fun`, and signatures whose modifiers/params wrap across lines — verified against the framework `coin` module (every `public entry fun` was missed) and `deepbookv3`. The LSP parses with the real Move grammar, so it catches all of them and returns exact name positions.
+- **Visibility classification reads the declaration line the LSP points at.** The document-symbols outline carries no visibility, but `range.startCharacter` is the column where the name begins, so columns `0..startCharacter` are exactly the modifier prefix (`fun `, `public fun `, `public(package) fun `, `public entry fun `). Step 1 matches on the keywords present rather than column arithmetic.
+- **Documented the warm-up gotcha**: the first `move_document_symbols` call against a freshly-opened package returns `"symbols": []` while move-analyzer indexes the workspace — retry once (or call `move_diagnostics` first) before recording a module as empty.
+- **The regex `scripts/extract-move-functions.py` is demoted to a documented fallback** for when move-analyzer is unavailable, with an explicit "best-effort, may under-count" warning. LSP line numbers are now carried into the inventory to make Step 2 call-chain tracing cheaper.
+- **`move-call-chains` diagrams redesigned as a native SVG visual language.** The diagrams were already inline SVG (not Mermaid), but Step 4 authored them by transcribing ASCII primitives 1:1 — hard-cornered `<rect>` boxes, straight `<line>` edges, `<polygon>` "ASCII diamonds" — which read stiff. `references/ascii-style-guide.md` is renamed to `references/svg-style-guide.md` and rewritten to design natively: rounded nodes (`rx≈8`), cubic-Bézier edge `<path>`s with a shared arrowhead marker, per-tier color tokens (dark/light) from the shared html-conventions palette, stadium-shaped event nodes, dashed external nodes/edges, and phase **bands** instead of enclosing mega-boxes. Step 4 now references the guide, forbids ASCII transcription and DSLs (Mermaid/Graphviz), and keeps the textual tags so color is never the only channel (accessibility + grayscale print).
+
 ## [0.2.0] - 2026-05-19
 
 ### Added

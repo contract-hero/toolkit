@@ -13,11 +13,11 @@ description: |
 
 # Move Call Chain Diagrams
 
-Generate a comprehensive call-chain reference document for Sui Move packages. The output is a single self-contained HTML file with inline SVG box-and-arrow diagrams showing every public/entry function's internal call chain, organized by user stories that follow the project's domain logic. The same visibility/role-tagging conventions from `references/ascii-style-guide.md` apply — they just map onto SVG primitives instead of ASCII characters.
+Generate a comprehensive call-chain reference document for Sui Move packages. The output is a single self-contained HTML file with inline SVG box-and-arrow diagrams showing every public/entry function's internal call chain, organized by user stories that follow the project's domain logic. The visibility/role-tagging conventions live in `references/svg-style-guide.md`, which defines the native-SVG visual language for these diagrams.
 
 ## Process Overview
 
-1. **Extract** — Run the extraction script to inventory all functions
+1. **Extract** — Use the move-analyzer LSP to inventory all functions (regex script is a fallback)
 2. **Explore** — Read key modules to trace call chains
 3. **Group** — Organize functions into domain-driven user stories
 4. **Diagram** — Generate one inline `<svg>` diagram per independent operation
@@ -25,19 +25,108 @@ Generate a comprehensive call-chain reference document for Sui Move packages. Th
 
 ## Step 1: Extract Function Inventory
 
-Run the extraction script on all Move packages in the project:
+Build the inventory from the **move-analyzer LSP**, not from regex. The
+`mcp__plugin_sui-pilot_move-lsp__move_document_symbols` tool parses each file
+with the real Move grammar, so it catches declarations a line-by-line regex
+silently drops — `public entry fun`, `macro fun`, `public(package) macro fun`,
+and signatures whose modifiers/params wrap across lines. (The tool's own
+description says to prefer it over regex extraction.) The legacy
+`scripts/extract-move-functions.py` is kept only as a **fallback for when
+move-analyzer is unavailable** — see "Fallback" below; it is known to
+under-count and must not be the primary source.
+
+### Procedure
+
+1. **Enumerate source files.** `Glob` each package's `sources/**/*.move`. Skip
+   anything under `build/`. Skip `tests/**` unless the user asked to include
+   test functions.
+
+2. **Call the LSP per file.** For each file, call `move_document_symbols` with
+   its absolute `filePath`. The result is:
+
+   ```jsonc
+   {
+     "workspaceRoot": "…",
+     "symbols": [
+       { "name": "<module>", "kind": "module", "range": {…},
+         "children": [
+           { "name": "EFoo",  "kind": "constant", "range": {…} },
+           { "name": "Bar",   "kind": "struct",   "range": {…}, "children": [/* fields */] },
+           { "name": "place_bid", "kind": "function",
+             "range": { "startLine": 241, "startCharacter": 20, … } },
+           …
+         ] }
+     ]
+   }
+   ```
+
+   - The **module name** is the top-level `kind: "module"` symbol's `name`.
+   - Functions are the `kind: "function"` entries in that module's `children`.
+   - `range.startLine` is **0-indexed** — add 1 to get the editor line number.
+     Keep this line number; it makes Step 2 call-chain tracing far cheaper.
+   - `range.startCharacter` is the **column where the function name begins**.
+
+3. **Warm-up — empty `symbols` on the first call.** The very first
+   `move_document_symbols` call against a freshly-opened package usually returns
+   `"symbols": []` while move-analyzer indexes the workspace. This is **not** an
+   empty module. If you get `[]`, call `move_diagnostics` once on any file in
+   that package (it forces indexing), then re-call `move_document_symbols`.
+   Subsequent files in the same workspace return immediately. Never record a
+   module as "no functions" off a single empty response — always retry once.
+
+4. **Classify visibility from the declaration line.** The LSP outline does not
+   carry visibility, but it hands you the exact location, so read it straight
+   from source. For each function symbol, `Read` the file at `startLine + 1` and
+   inspect the text **before the name** — i.e. columns `0 .. startCharacter`,
+   which is exactly the modifier prefix:
+
+   | Prefix substring (cols `0..startCharacter`) | VISIBILITY  |
+   |---------------------------------------------|-------------|
+   | `fun `                                      | `private`   |
+   | `public fun `                               | `public`    |
+   | `public(package) fun `                      | `public_package` |
+   | `entry fun `                                | `entry`     |
+   | `public entry fun `                         | `public` + entry (tag as entry point) |
+   | contains `macro fun `                       | append `macro` |
+
+   Match on the keywords present (`public`, `public(package)`, `entry`,
+   `macro`), not on exact column arithmetic — indentation and `macro`/`entry`
+   combinations shift the column.
+
+5. **Drop test functions.** A function is a test if the line(s) immediately
+   above its declaration carry `#[test]` or `#[test_only]`, or the file lives
+   under `tests/`. The LSP lists these like any other function, so filter them
+   out unless tests were explicitly requested.
+
+6. **Read multi-line signatures fully when needed.** For params, read from the
+   `(` after the name to its matching `)`, which may span several lines (e.g.
+   `mint_and_transfer` in the framework `coin` module). The param list is
+   secondary to visibility + name + line for call-chain work, so capture it only
+   where it clarifies a flow.
+
+Assemble the same inventory the old TSV produced —
+`PACKAGE | MODULE | VISIBILITY | FUNCTION | PARAMS` — now augmented with the
+declaration **line number** from the LSP.
+
+Review the inventory to understand scope:
+- Count public vs. public(package) vs. private functions
+- Identify which modules are large (many functions) vs. small (accessors only)
+- Note any `entry` / `public entry` functions (direct transaction entry points)
+
+### Fallback (move-analyzer unavailable)
+
+If the sui-pilot move-lsp MCP server is not connected (e.g. `move-analyzer`
+isn't installed), fall back to the regex script and **state in the output that
+the inventory is best-effort and may under-count**:
 
 ```bash
-python3 ~/.claude/skills/move-call-chains/scripts/extract-move-functions.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/move-call-chains/scripts/extract-move-functions.py \
   packages/pkg1 packages/pkg2 [...]
 ```
 
-This produces a TSV with columns: `PACKAGE | MODULE | VISIBILITY | FUNCTION | PARAMS`
-
-Review the output to understand scope:
-- Count public vs. public(package) vs. private functions
-- Identify which modules are large (many functions) vs. small (accessors only)
-- Note any `entry` functions (direct transaction entry points)
+It emits the same `PACKAGE | MODULE | VISIBILITY | FUNCTION | PARAMS` columns
+but misses `public entry fun`, `macro fun`, and wrapped declarations — so
+cross-check anything that looks thin against the source before trusting it.
 
 ## Step 2: Trace Call Chains
 
@@ -74,46 +163,40 @@ Group functions into user stories based on the project's domain lifecycle. Each 
 
 ## Step 4: Generate SVG Diagrams
 
-Read `references/ascii-style-guide.md` for the conceptual conventions (visibility tags, role labels, branching, cross-module edges, merging Retail/Institutional variants). The conventions are format-agnostic; render them in SVG instead of ASCII.
+**REQUIRED REFERENCE:** Read `references/svg-style-guide.md` first. It defines the native-SVG visual language — tier tokens, node shapes, curved edges, branching, auth labels, phase bands, and the legend — plus a complete worked `<svg>`.
 
-**Mapping ASCII → SVG:**
-- ASCII box → `<g class="node pub">` containing a `<rect>` + `<text>` for the function name and a smaller `<text>` for the visibility tag
-- Edge → `<line>` or `<path>` ending in an arrowhead `<marker>`
-- Auth annotation on edge → `<text>` placed near the line midpoint
-- Branch (`< cond? >`) → diamond `<polygon>` node with two outgoing edges
-- Cross-module call → edge stroke-style differs (dashed) and the target node carries a `{EXT}` tag
-- Event emission → small node with class `evt` and a `*EVT*` tag
+Diagrams are **hand-authored inline SVG designed natively**. Do NOT use Mermaid, Graphviz, or any DSL, and do NOT transcribe ASCII shapes — no hard-cornered boxes, straight `<line>` pipes, or `<polygon>` "ASCII diamonds" standing in for real shapes. Design for SVG: rounded nodes (`rx≈8`), cubic-Bézier edge `<path>`s, token-driven color per tier, a reused arrowhead `<marker>`, and real type hierarchy.
 
-**Key rules** (carry over verbatim):
-- One `<svg>` per independent operation (do NOT combine unrelated flows)
-- Connected operations with cross-references MUST stay in a single `<svg>`
-- Every node carries a visibility/role tag as a small label: `[PUB]`, `[priv]`, `[pkg]`, `{EXT}`, `{COND}`, `*EVT*`
-- Annotate entry-point edges with the required `Auth<Role>`
-- Keep each diagram under ~800px tall; split into sub-diagrams per logical phase if it outgrows that
-- Merge Retail/Institutional variants that delegate to the same `_impl` function
+**Tier → shape (see the guide for the CSS and full example):**
+- Entry point (`public`/`entry`) → rounded rect, 2px accent stroke, bold label, `[PUB]` tag
+- Private helper → rounded rect, muted stroke, `[priv]`
+- `public(package)` → rounded rect, pkg-token stroke, `[pkg]`
+- External (framework/PAS/3rd-party) → rounded rect, **dashed** stroke, qualifier in label, `{EXT}`
+- Branch → **diamond**, two labeled out-edges, `{COND}`
+- Event → **stadium/pill** (`rx = height/2`), `*EVT*`
 
-**Style the diagrams from one inline `<style>` block in `<head>`** so all stories share a visual language (one CSS class per visibility tier; one marker definition reused across diagrams).
+**Key rules:**
+- One `<svg>` per independent operation (do NOT combine unrelated flows); connected operations with cross-references stay in a single `<svg>`.
+- Every node keeps its textual tag — color is never the only channel (accessibility + grayscale print).
+- Edges are curved `<path>`s with a single shared `<defs>` arrowhead; cross-module/external edges are dashed.
+- Annotate entry-point edges with the required `Auth<Role>` (escape generics: `Auth&lt;Role&gt;`).
+- Group phases with faint labeled **bands**, not enclosing mega-boxes.
+- Keep each diagram under ~800px tall; split into per-phase sub-diagrams if it outgrows that. Merge variants that delegate to a shared `_impl` onto one node.
 
-**For each user story, write a `<section>`:**
+**Style every diagram from one inline `<style>` block in `<head>`** (one class per tier, one marker, tokens for dark/light) so all stories share the language. Make SVGs responsive: `svg { max-width: 100%; height: auto; }`.
+
+**For each user story, write a `<section>`** wrapping a `<figure>` + `<svg>` + `<figcaption>`. Use the worked example in `references/svg-style-guide.md` as the structural template:
 
 ```html
 <section id="story-N-place-bid">
   <h2>Story N: [Title]</h2>
   <p><strong>As a</strong> [role], <strong>I want to</strong> [action], <strong>so that</strong> [outcome].</p>
   <figure>
-    <svg viewBox="0 0 400 320" role="img" aria-label="place_bid call chain">
-      <!-- node: place_bid [PUB] -->
-      <g class="node pub" transform="translate(120,20)">
-        <rect width="160" height="40"/>
-        <text x="80" y="20" text-anchor="middle">place_bid</text>
-        <text x="150" y="34" text-anchor="end" class="tag">[PUB]</text>
-      </g>
-      <!-- edge with auth -->
-      <line x1="200" y1="60" x2="200" y2="100" marker-end="url(#arrow)"/>
-      <text x="208" y="84" class="auth">Auth&lt;Investor&gt;</text>
-      <!-- … more nodes / edges … -->
+    <svg viewBox="0 0 420 300" role="img" aria-label="place_bid call chain">
+      <!-- nodes (rounded rects / diamond / pill), curved <path> edges with
+           marker-end="url(#arrow)", auth + edge labels — per the style guide -->
     </svg>
-    <figcaption>Place-bid flow with retail/institutional split.</figcaption>
+    <figcaption>place_bid flow with retail/institutional split.</figcaption>
   </figure>
   <p>Additional notes or query-function tables as needed.</p>
 </section>
@@ -164,11 +247,19 @@ If a legacy `CALL_CHAINS.md` already exists, leave it in place (git history may 
 
 ## Additional Resources
 
+### Primary tool
+- **`mcp__plugin_sui-pilot_move-lsp__move_document_symbols`** — grammar-accurate
+  function/struct/constant outline per file (see Step 1). This is the primary
+  inventory source.
+
 ### Scripts
-- **`scripts/extract-move-functions.py`** — Extracts all function declarations from Move source files with visibility, module, and parameter info
+- **`scripts/extract-move-functions.py`** — **Fallback only.** Regex-based
+  extraction of function declarations (visibility, module, params). Used when
+  move-analyzer is unavailable; under-counts `public entry fun`, `macro fun`,
+  and wrapped declarations.
 
 ### Reference Files
-- **`references/ascii-style-guide.md`** — Conceptual conventions: visibility/role tag glossary, edge and auth-label syntax, branching rails, banner-style grouping, cross-module labelling. ASCII shapes documented there map onto SVG primitives per the Step 4 "Mapping ASCII → SVG" table.
+- **`references/svg-style-guide.md`** — The native-SVG visual language: tier tokens (dark/light), node shapes per visibility/role, curved edge `<path>`s + shared arrowhead marker, branching diamonds, auth labels, phase bands, cross-module/external styling, and a complete worked `<svg>` plus legend.
 
 ---
 
@@ -180,7 +271,7 @@ Skill-specific conventions:
 
 - **Inline SVG diagrams** with `viewBox="…" role="img" aria-label="…"`. Define one arrowhead `<marker>` once in `<defs>` and reuse via `marker-end="url(#arrow)"`. Strokes and text use `currentColor` so the diagram follows the dark/light theme; marker fills reference `var(--accent)` or tier tokens (see below) — never hardcoded hex.
 - **CSS classes for visibility tiers**: `.pub`, `.priv`, `.pkg`, `.ext`, `.cond`, `.evt` — define one CSS-variable token per tier per branch (light + dark), following the "Categorical / tier scales" pattern in [html-conventions.md → Extending the palette](../html-artifact/references/html-conventions.md). Drive the legend from the same stylesheet that styles diagram nodes, so visibility is style-driven, not text-driven.
-- **Dark / light verify.** Before writing the artifact, confirm: `:root` palette + `@media (prefers-color-scheme: dark)` override are present, every component rule references `var(--…)` (no raw hex), and every `<line>` / `<text>` / arrowhead either uses `currentColor` or a tier token.
+- **Dark / light verify.** Before writing the artifact, confirm: `:root` palette + `@media (prefers-color-scheme: dark)` override are present, every component rule references `var(--…)` (no raw hex), and every edge `<path>` / `<text>` / arrowhead either uses `currentColor` or a tier token.
 - **One `<svg>` per independent operation.** Connected operations with cross-references stay in a single `<svg>`. Keep each diagram under ~800px tall; split into sub-diagrams per logical phase if it outgrows that.
 - **Appendix tables** with `<thead>`/`<tbody>` for accessor / infrastructure / completeness coverage.
 - **`<details><summary>`** for any "advanced" notes that would otherwise bloat a story's main flow.
