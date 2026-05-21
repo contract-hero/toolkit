@@ -4,6 +4,8 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-21
+
 ### Changed
 
 - **`move-call-chains` Step 1 now extracts the function inventory from the move-analyzer LSP** (`mcp__plugin_sui-pilot_move-lsp__move_document_symbols`) instead of the regex script. The regex matched function declarations line-by-line and silently dropped `public entry fun`, `macro fun`, `public(package) macro fun`, and signatures whose modifiers/params wrap across lines — verified against the framework `coin` module (every `public entry fun` was missed) and `deepbookv3`. The LSP parses with the real Move grammar, so it catches all of them and returns exact name positions.
