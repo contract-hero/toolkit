@@ -4,6 +4,16 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ## [Unreleased]
 
+### Added
+
+- **`inkscape-live` skill** — operational protocol for live-editing the document open
+  in the macOS Inkscape GUI via the `inkscape` MCP server (jjjsood/inkscape-mcp-server,
+  extension-socket transport): user-click arming with the 120 s rendezvous race, modal
+  session semantics (snapshot at arm, one undo step per session, approval tokens),
+  effective-usage patterns (`live_get_scene` dims first, scaled proof renders), and the
+  root-caused desync failure mode (`INKSCAPE_MCP_PROCESS_TIMEOUT_S=300` requirement,
+  never call the broken `live_arm_socket`).
+
 ## [0.3.0] - 2026-05-21
 
 ### Changed
