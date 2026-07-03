@@ -11,6 +11,7 @@ A Claude Code plugin that bundles the **self-contained HTML deliverable** skill 
 | `for-dummies` | Reads an actual codebase and generates an `*_FOR_DUMMIES.html` intro guide (architecture, prerequisites, boot sequence, common tasks). Monorepo-aware. |
 | `move-call-chains` | Generates HTML call-chain diagrams for Sui Move packages, organized as user stories. Inline SVG box-and-arrow per user story. |
 | `inkscape-live` | Live-edit the document open in the macOS Inkscape GUI via the `inkscape` MCP server: arming protocol (user click + 120s rendezvous race), modal session semantics (one undo step per session), desync troubleshooting. macOS-specific; headless SVG work doesn't need it. |
+| `inkscape-headless` | Headless file work through the `inkscape` MCP server: sandbox root + size-limit navigation, linked-raster workaround for oversized SVGs, PDF/AI ingestion via CLI conversion, print gotchas (bleed, CMYK→RGB, Illustrator `/PieceInfo`), verification recipes. Companion to `inkscape-live` (live-GUI protocol). |
 
 Every artifact-producing skill (`html-artifact`, `for-dummies`, `move-call-chains`) loads `skills/html-artifact/references/html-conventions.md` as its REQUIRED REFERENCE — the family aesthetic. `publish-html` doesn't render HTML, only publishes existing files, so it doesn't share rendering conventions.
 
