@@ -4,6 +4,20 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-03
+
+### Added
+
+- **`inkscape-headless` skill** — navigating the `inkscape` MCP server for headless
+  file work, validated against a 220MB Illustrator print PDF: the workspace-root
+  sandbox and size limits (`INKSCAPE_MCP_MAX_INPUT_BYTES` 50MB / output 100MB), the
+  linked-raster workaround for oversized SVGs (extract embedded base64 to a file,
+  absolute `file:///` href), PDF/AI ingestion via background CLI conversion, print
+  gotchas (crop-box canvas but `<page>` preserves media-box bleed; RGB-internal so
+  CMYK jobs stamp with pypdf; the `/PieceInfo → /Illustrator` stale-artwork trap),
+  id-less placed content (snapshot + re-place), and pre-ship verification recipes
+  (`pdfimages` resolution parity, dilate-then-decode for dot-style QR codes).
+
 ## [0.4.0] - 2026-07-03
 
 ### Added
