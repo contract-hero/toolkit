@@ -4,6 +4,8 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-03
+
 ### Added
 
 - **`inkscape-live` skill** — operational protocol for live-editing the document open
