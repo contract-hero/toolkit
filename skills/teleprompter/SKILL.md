@@ -16,6 +16,7 @@ description: |
 allowed-tools: Read, Write, Glob, Grep, Bash
 author: alilloig
 version: 1.0.0
+date: 2026-07-18
 ---
 
 # Teleprompter
@@ -42,7 +43,7 @@ beat duration   = hold                         (a silent `pause` beat)
 ```
 
 - **WPM = the speaking rate**, adjustable live in the UI (default 130 — a
-  deliberate public-speaking pace; conversational is ~150, slow/keynote ~110).
+  deliberate public-speaking pace; conversational is ~150, slow/keynote ~120).
   A measured speaking rate already includes natural micro-pauses, so the engine
   adds **no** artificial per-line breath. Do not try to pad durations yourself.
 - **`hold`** = extra seconds of deliberate silence *after* a beat (an emphasis
@@ -144,19 +145,29 @@ Then produce the output file from the template:
 
 1. `Read` `template.html` from this skill directory.
 2. Replace **`/*{{DECK}}*/`** with the pretty-printed `DECK` object literal
-   (valid JS — the beats' `text` must be properly quoted/escaped).
+   (valid JS — the beats' `text` must be properly quoted/escaped). **Before
+   substituting, replace every `</` in that serialized literal with `<\/`** — this
+   neutralizes any stray `</script>` in beat text that would otherwise close the
+   script tag at HTML-parse time (verified necessary; escaping alone can't fix it
+   because it happens before the JS runs). The engine HTML-escapes `<`/`>`/`&` at
+   render time, so you do not need to touch those.
 3. Replace **both** `/*{{TITLE}}*/` occurrences (the `<title>` tag and the header
    `.title` span) with the plain-text title.
 4. `Write` the result to **`<slug>-teleprompter.html`** in the user's working
    directory (slug = kebab-case of the title, e.g. `portable-memory-teleprompter.html`).
    If the source was a file, prefer `<source-basename>-teleprompter.html`.
 
-**Escaping matters.** The beats become a JS array literal. Escape backslashes,
-quotes, and `</script>` sequences inside `text`. Use straight or curly quotes as
-in the source; the engine renders `text` via `textContent` (no HTML injection),
-so ampersands and angle brackets are safe as literal characters — but they must
-still be valid inside a JS string. When in doubt, build the DECK as JSON and drop
-it in (JSON is valid JS here).
+**Escaping matters.** The beats become a JS array literal inside a `<script>`
+tag — two layers to get right:
+1. **Valid JS string**: escape backslashes and whichever quote you delimit with.
+2. **The `</script>` hazard**: a literal `</script>` anywhere in a `text`/`label`
+   ends the script tag early. Split it (e.g. `<\/script>`). Switching to JSON does
+   NOT save you here — the browser scans for `</script>` before any JS parsing.
+
+Angle brackets and ampersands in the *spoken* text are safe: the engine
+HTML-escapes `text` and `label` (via its `esc()` helper) at every render site, so
+`<`, `>`, `&` display literally and cannot inject markup. When in doubt, build the
+DECK as JSON (valid JS here) — just still guard `</script>`.
 
 ---
 
@@ -189,8 +200,11 @@ Do not auto-publish it anywhere (that's `publish-html`, only on request).
   continuous flow, which is correct for a plain speech.
 - **Bilingual / non-English source**: keep the source language verbatim; the
   word-count model works for any space-delimited language. For scripts without
-  spaces (e.g. Chinese/Japanese), WPM-by-words underestimates — tell the user to
-  use the "fit" box against a rehearsal time instead of trusting the default.
+  spaces (e.g. Chinese/Japanese) word count is a poor proxy: the "fit" box fixes
+  the TOTAL runtime, but per-beat durations stay proportional to word count, so
+  individual beats can cross the eye-line too fast or slow even when the total is
+  right. For heavy CJK use, split beats into more even chunks (or add explicit
+  `hold`s) and treat the scroll as a guide rather than exact per-line timing.
 - **The user wants to re-time an existing prompter**: they just change WPM or the
   "fit" box in the browser — no rebuild needed. Only rebuild when the *text* or
   *segmentation* changes.

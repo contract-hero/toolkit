@@ -101,8 +101,8 @@ main#stage.mirrored { transform: scaleX(-1); }
   content: "▸"; position: absolute; left: .4rem; top: -0.72em;
   color: var(--stage-accent); font-size: 1.1rem;
 }
-/* pacing HUD (scroll mode): current section + seconds left on this beat, and
-   whether the speaker is running ahead/behind the schedule. */
+/* pacing HUD (scroll mode): current section label, seconds left on this beat,
+   and a running clock (elapsed / total estimate). */
 #hud {
   position: absolute; top: .6rem; right: .9rem;
   font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums;
@@ -140,6 +140,9 @@ footer {
   font-size: .74rem; color: var(--fg-muted);
   display: flex; flex-wrap: wrap; gap: .4rem 1.2rem;
 }
+/* In fullscreen the stage owns the whole screen — hide the chrome so no bright
+   panel reflects on the reader's face/glasses (the dark-stage rationale). */
+:root:fullscreen header, :root:fullscreen footer { display: none; }
 @media (max-width: 720px) {
   header { font-size: .78rem; }
   #scroller { padding: 42vh 5vw 62vh; }
@@ -179,6 +182,7 @@ footer {
   <span><kbd>m</kbd> mirror</span>
   <span><kbd>b</kbd> mode</span>
   <span><kbd>f</kbd> fullscreen</span>
+  <span><kbd>Home</kbd> restart</span>
   <span>durations estimated from word count at the chosen speaking rate — set wpm, or type a target time into "fit" to back-solve it</span>
 </footer>
 
@@ -216,24 +220,31 @@ const BEATS = (DECK.beats || []).map((b) => ({
   hold: +b.hold || 0,
   words: b.pause ? 0 : (b.text || "").trim().split(/\s+/).filter(Boolean).length,
 }));
+// Defensive: an empty deck would null-deref in getSchedule (no last beat). The
+// skill always emits ≥1 beat, but degrade to a clear message rather than crash.
+if (BEATS.length === 0) BEATS.push({ label: "", text: "(no beats provided)", pause: true, hold: 3, words: 0 });
 let wpm = Math.min(240, Math.max(60, +DECK.wpm || 130));
 wpmInput.value = wpm;
 
 const totalWords = BEATS.reduce((s, b) => s + b.words, 0);
-const totalHold = BEATS.reduce((s, b) => s + (b.pause ? b.hold || 1.5 : b.hold), 0);
+const totalHold = BEATS.reduce((s, b) => s + (b.pause ? b.hold || 2 : b.hold), 0);
 
 const fmt = (s) => {
   s = Math.max(0, Math.round(s));
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 };
 // A beat's on-stage duration under the current speaking rate.
-const beatDur = (b) => (b.pause ? (b.hold || 1.5) : b.words / wpm * 60 + b.hold);
+const beatDur = (b) => (b.pause ? (b.hold || 2) : b.words / wpm * 60 + b.hold);
 const scheduleTotal = () => totalWords / wpm * 60 + totalHold;
+// HTML-escape untrusted beat text/labels before any innerHTML interpolation:
+// DECK is produced by an LLM over arbitrary user prose, so &, <, > must be
+// neutralized or they break rendering / inject markup.
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
 scroller.innerHTML = BEATS.map((b, i) => `
   <section class="beat${b.pause ? " pause" : ""}" id="beat-${i}">
-    ${b.label ? `<div class="label">${b.label}</div>` : ""}
-    <p>${b.text}</p>
+    ${b.label ? `<div class="label">${esc(b.label)}</div>` : ""}
+    <p>${esc(b.text)}</p>
   </section>`).join("");
 
 let beatMode = false, playing = false, current = 0, beatStart = 0, raf = null, lastTs = null;
@@ -296,7 +307,7 @@ function updateHud() {
     let acc = 0;
     for (const p of pts) {
       if (scrollT < acc + p.dur) {
-        const lbl = BEATS[p.i].label || `beat ${p.i + 1}`;
+        const lbl = esc(BEATS[p.i].label || `beat ${p.i + 1}`);
         head = `${lbl} · <b>${(acc + p.dur - scrollT).toFixed(1)}s</b>`;
         break;
       }
@@ -354,7 +365,7 @@ function showBeat(i) {
   current = Math.max(0, Math.min(BEATS.length - 1, i));
   const b = BEATS[current];
   single.querySelector(".meta").innerHTML =
-    `${current + 1} / ${BEATS.length}${b.label ? ` — ${b.label}` : ""} — <b>${beatDur(b).toFixed(1)}s</b>`;
+    `${current + 1} / ${BEATS.length}${b.label ? ` — ${esc(b.label)}` : ""} — <b>${beatDur(b).toFixed(1)}s</b>`;
   single.querySelector("p").textContent = b.text;
   beatStart = performance.now();
   if (!raf) raf = requestAnimationFrame(tick);
@@ -406,6 +417,11 @@ document.addEventListener("keydown", (e) => {
   else if (k === "ArrowDown") { e.preventDefault(); wpmInput.value = +wpmInput.value - 5; wpmInput.oninput(); }
   else if (k === "ArrowRight") { beatMode ? showBeat(current + 1) : (scroller.scrollTop += 120); }
   else if (k === "ArrowLeft") { beatMode ? showBeat(current - 1) : (scroller.scrollTop -= 120); }
+  else if (k === "Home") {
+    e.preventDefault();
+    if (beatMode) showBeat(0);
+    else { setPlaying(false); scrollT = 0; scroller.scrollTop = posAt(0); updateHud(); }
+  }
   else if (k === "m") mirrorBtn.onclick();
   else if (k === "b") setMode(!beatMode);
   else if (k === "f") document.getElementById("full").onclick();
