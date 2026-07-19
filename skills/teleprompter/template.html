@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>/*{{TITLE}}*/ — Teleprompter</title>
+<style>
+/* Self-contained teleprompter. The chrome follows the viewer's light/dark
+   theme; the reading stage is always dark — a bright panel next to the lens
+   reflects on the speaker's face and glasses. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --fg-muted: #6e6e6e;
+  --accent: #1976d2;
+  --border: #e0e0e0;
+  --stage-bg: #0b0b0d;
+  --stage-fg: #f5f5f2;
+  --stage-muted: #8a8a92;
+  --stage-accent: #4dabf7;
+  --stage-warning: #f0c674;
+  --ok: #2e7d32;
+  --warn: #9a5b00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e; --fg: #cccccc; --fg-muted: #9e9e9e;
+    --accent: #4dabf7; --border: #2a2a2a; --ok: #66bb6a; --warn: #f0c674;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .55rem 1rem;
+  padding: .55rem .9rem;
+  border-bottom: 1px solid var(--border);
+  font-size: .82rem;
+}
+header .title { font-weight: 650; margin-right: auto; }
+header label { display: inline-flex; align-items: center; gap: .35rem; color: var(--fg-muted); }
+header input[type="range"] { width: 96px; accent-color: var(--accent); }
+header input[type="number"], header input[type="text"] {
+  font: inherit; width: 4.2rem; padding: .12rem .3rem;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: transparent; color: var(--fg);
+}
+header input[type="text"] { width: 3.6rem; text-align: center; }
+.est { font-variant-numeric: tabular-nums; }
+.est b { color: var(--accent); font-weight: 650; }
+button {
+  font: inherit; padding: .25rem .7rem;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: transparent; color: var(--fg); cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+kbd {
+  font-family: ui-monospace, Menlo, monospace; font-size: .72rem;
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 4px; padding: 0 .3rem;
+}
+main#stage {
+  flex: 1; overflow: hidden; position: relative;
+  background: var(--stage-bg); color: var(--stage-fg);
+}
+main#stage.mirrored { transform: scaleX(-1); }
+
+/* ── continuous scroll mode ── */
+#scroller {
+  position: absolute; inset: 0;
+  overflow-y: auto; scrollbar-width: none;
+  padding: 45vh 8vw 62vh;
+}
+#scroller::-webkit-scrollbar { display: none; }
+.beat { margin: 0 0 1.9em; max-width: 26ch; margin-left: auto; margin-right: auto; }
+.beat .label {
+  font-size: .34em; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--stage-accent); margin: 0 0 .5em;
+}
+.beat p { margin: 0; line-height: 1.42; font-weight: 550; }
+.beat.pause p { color: var(--stage-muted); font-style: italic; font-size: .6em; }
+/* eye-line marker: read the line crossing this arrow */
+#eyeline {
+  position: absolute; left: 0; right: 0; top: 42%;
+  pointer-events: none;
+  border-top: 2px solid color-mix(in srgb, var(--stage-accent) 55%, transparent);
+}
+#eyeline::before {
+  content: "▸"; position: absolute; left: .4rem; top: -0.72em;
+  color: var(--stage-accent); font-size: 1.1rem;
+}
+/* pacing HUD (scroll mode): current section label, seconds left on this beat,
+   and a running clock (elapsed / total estimate). */
+#hud {
+  position: absolute; top: .6rem; right: .9rem;
+  font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums;
+  font-size: 1rem; color: var(--stage-muted); text-align: right;
+  background: color-mix(in srgb, var(--stage-bg) 72%, transparent);
+  padding: .25rem .55rem; border-radius: 6px; pointer-events: none;
+}
+#hud b { color: var(--stage-accent); font-weight: 650; }
+#hud .clock { display: block; font-size: .82em; margin-top: .15em; }
+
+/* ── beat-by-beat mode ── */
+#single {
+  position: absolute; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 4vh 7vw; gap: 2.4vh;
+}
+#single .meta {
+  font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--stage-muted);
+}
+#single .meta b { color: var(--stage-accent); font-weight: 650; }
+#single #bclock {
+  font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums;
+  font-size: 2.4rem; font-weight: 650; line-height: 1; color: var(--stage-accent);
+}
+#single #bclock.pause { color: var(--stage-muted); }
+#single #bclock.over { color: var(--stage-warning); }
+#single p { margin: 0; max-width: 24ch; line-height: 1.38; font-weight: 550; }
+#single .hint { font-size: .8rem; color: var(--stage-muted); }
+#progress {
+  position: absolute; left: 0; bottom: 0; height: 5px; width: 0;
+  background: var(--stage-accent); transition: width .1s linear;
+}
+footer {
+  padding: .4rem .9rem; border-top: 1px solid var(--border);
+  font-size: .74rem; color: var(--fg-muted);
+  display: flex; flex-wrap: wrap; gap: .4rem 1.2rem;
+}
+/* In fullscreen the stage owns the whole screen — hide the chrome so no bright
+   panel reflects on the reader's face/glasses (the dark-stage rationale). */
+:root:fullscreen header, :root:fullscreen footer { display: none; }
+@media (max-width: 720px) {
+  header { font-size: .78rem; }
+  #scroller { padding: 42vh 5vw 62vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="title">/*{{TITLE}}*/</span>
+  <span class="est">est. <b id="estTotal">—</b> @ <span id="wpmEcho">130</span> wpm</span>
+  <button id="mode">Beat mode</button>
+  <button id="play" aria-pressed="false">▶ Scroll</button>
+  <label>wpm <input id="wpm" type="number" min="60" max="240" step="5" value="130"></label>
+  <label>fit <input id="fit" type="text" placeholder="m:ss"></label>
+  <label>size <input id="size" type="range" min="28" max="120" value="60"></label>
+  <button id="mirror" aria-pressed="false">Mirror</button>
+  <button id="full">Fullscreen</button>
+</header>
+
+<main id="stage" style="font-size:60px">
+  <div id="scroller"></div>
+  <div id="eyeline"></div>
+  <div id="hud"></div>
+  <div id="single">
+    <div class="meta"></div>
+    <div id="bclock"></div>
+    <p></p>
+    <div class="hint"><kbd>space</kbd> next · <kbd>←</kbd> back · timer restarts on advance</div>
+    <div id="progress"></div>
+  </div>
+</main>
+
+<footer>
+  <span><kbd>space</kbd> play/pause · next beat</span>
+  <span><kbd>↑</kbd><kbd>↓</kbd> wpm</span>
+  <span><kbd>←</kbd><kbd>→</kbd> nudge · beat</span>
+  <span><kbd>m</kbd> mirror</span>
+  <span><kbd>b</kbd> mode</span>
+  <span><kbd>f</kbd> fullscreen</span>
+  <span><kbd>Home</kbd> restart</span>
+  <span>durations estimated from word count at the chosen speaking rate — set wpm, or type a target time into "fit" to back-solve it</span>
+</footer>
+
+<script>
+// ── content ──────────────────────────────────────────────────────────────
+// DECK is injected by the teleprompter skill. Shape:
+//   { title, wpm, beats: [ { label?, text, pause?, hold? } ] }
+// A normal beat's spoken time = words / wpm * 60 (+ hold seconds of deliberate
+// silence after it). A `pause` beat is a silent hold of `hold` seconds — a
+// planned breath / dramatic gap / "let that land" moment; its text is a stage
+// direction, not spoken. Reading rate (wpm) already bakes in the micro-pauses
+// of natural delivery, so no artificial per-line breath is added.
+const DECK = /*{{DECK}}*/;
+
+const stage = document.getElementById("stage");
+const scroller = document.getElementById("scroller");
+const single = document.getElementById("single");
+const eyeline = document.getElementById("eyeline");
+const hud = document.getElementById("hud");
+const bclock = document.getElementById("bclock");
+const progress = document.getElementById("progress");
+const playBtn = document.getElementById("play");
+const modeBtn = document.getElementById("mode");
+const mirrorBtn = document.getElementById("mirror");
+const wpmInput = document.getElementById("wpm");
+const wpmEcho = document.getElementById("wpmEcho");
+const fitInput = document.getElementById("fit");
+const sizeInput = document.getElementById("size");
+const estTotal = document.getElementById("estTotal");
+
+const BEATS = (DECK.beats || []).map((b) => ({
+  label: b.label || "",
+  text: b.text || "",
+  pause: !!b.pause,
+  hold: +b.hold || 0,
+  words: b.pause ? 0 : (b.text || "").trim().split(/\s+/).filter(Boolean).length,
+}));
+// Defensive: an empty deck would null-deref in getSchedule (no last beat). The
+// skill always emits ≥1 beat, but degrade to a clear message rather than crash.
+if (BEATS.length === 0) BEATS.push({ label: "", text: "(no beats provided)", pause: true, hold: 3, words: 0 });
+let wpm = Math.min(240, Math.max(60, +DECK.wpm || 130));
+wpmInput.value = wpm;
+
+const totalWords = BEATS.reduce((s, b) => s + b.words, 0);
+const totalHold = BEATS.reduce((s, b) => s + (b.pause ? b.hold || 2 : b.hold), 0);
+
+const fmt = (s) => {
+  s = Math.max(0, Math.round(s));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+};
+// A beat's on-stage duration under the current speaking rate.
+const beatDur = (b) => (b.pause ? (b.hold || 2) : b.words / wpm * 60 + b.hold);
+const scheduleTotal = () => totalWords / wpm * 60 + totalHold;
+// HTML-escape untrusted beat text/labels before any innerHTML interpolation:
+// DECK is produced by an LLM over arbitrary user prose, so &, <, > must be
+// neutralized or they break rendering / inject markup.
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+scroller.innerHTML = BEATS.map((b, i) => `
+  <section class="beat${b.pause ? " pause" : ""}" id="beat-${i}">
+    ${b.label ? `<div class="label">${esc(b.label)}</div>` : ""}
+    <p>${esc(b.text)}</p>
+  </section>`).join("");
+
+let beatMode = false, playing = false, current = 0, beatStart = 0, raf = null, lastTs = null;
+
+// ── target-paced scroll schedule ─────────────────────────────────────────
+// Autoscroll is time-driven, not constant-speed: each beat's block crosses the
+// eyeline in exactly its estimated slot, so reading the line at the arrow IS
+// speaking at the chosen rate. Recomputed whenever geometry or timing changes.
+let schedule = null, scheduleDirty = true, scrollT = 0, lastApplied = -1;
+
+function getSchedule() {
+  if (scheduleDirty || !schedule) {
+    const eye = stage.clientHeight * 0.42; // matches #eyeline top
+    const pts = BEATS.map((b, i) => ({
+      y: document.getElementById("beat-" + i).offsetTop - eye,
+      dur: beatDur(b),
+      i,
+    }));
+    const last = document.getElementById("beat-" + (BEATS.length - 1));
+    schedule = {
+      pts,
+      endY: last.offsetTop + last.offsetHeight - eye,
+      total: pts.reduce((s, p) => s + p.dur, 0),
+    };
+    scheduleDirty = false;
+  }
+  return schedule;
+}
+function posAt(t) {
+  const { pts, endY, total } = getSchedule();
+  if (t <= 0) return Math.max(0, pts[0].y);
+  if (t >= total) return endY;
+  let acc = 0;
+  for (let k = 0; k < pts.length; k++) {
+    const nextY = k + 1 < pts.length ? pts[k + 1].y : endY;
+    if (t < acc + pts[k].dur)
+      return pts[k].y + ((t - acc) / pts[k].dur) * (nextY - pts[k].y);
+    acc += pts[k].dur;
+  }
+  return endY;
+}
+function timeAt(y) {
+  const { pts, endY, total } = getSchedule();
+  if (y <= pts[0].y) return 0;
+  if (y >= endY) return total;
+  let acc = 0;
+  for (let k = 0; k < pts.length; k++) {
+    const nextY = k + 1 < pts.length ? pts[k + 1].y : endY;
+    if (y < nextY)
+      return acc + ((y - pts[k].y) / Math.max(1, nextY - pts[k].y)) * pts[k].dur;
+    acc += pts[k].dur;
+  }
+  return total;
+}
+function updateHud() {
+  const { pts, total } = getSchedule();
+  const remain = Math.max(0, total - scrollT);
+  let head = "end";
+  if (scrollT < total) {
+    let acc = 0;
+    for (const p of pts) {
+      if (scrollT < acc + p.dur) {
+        const lbl = esc(BEATS[p.i].label || `beat ${p.i + 1}`);
+        head = `${lbl} · <b>${(acc + p.dur - scrollT).toFixed(1)}s</b>`;
+        break;
+      }
+      acc += p.dur;
+    }
+  }
+  hud.innerHTML = `${head}<span class="clock">${fmt(scrollT)} / ${fmt(total)} · ${fmt(remain)} left</span>`;
+}
+function refreshTotals() {
+  wpm = Math.min(240, Math.max(60, +wpmInput.value || 130));
+  wpmEcho.textContent = wpm;
+  estTotal.textContent = fmt(scheduleTotal());
+  scheduleDirty = true;
+  if (!beatMode) updateHud();
+}
+
+function setPlaying(on) {
+  playing = on;
+  playBtn.setAttribute("aria-pressed", String(on));
+  playBtn.textContent = on ? "⏸ Pause" : "▶ Scroll";
+  lastTs = null;
+  if (on && !raf) raf = requestAnimationFrame(tick);
+}
+function tick(ts) {
+  raf = null;
+  if (beatMode) {
+    const b = BEATS[current];
+    const target = beatDur(b);
+    const elapsed = (performance.now() - beatStart) / 1000;
+    const remain = target - elapsed;
+    bclock.className = (b.pause ? "pause" : "") + (remain < 0 ? " over" : "");
+    bclock.textContent = remain >= 0 ? remain.toFixed(1) : "+" + (-remain).toFixed(1);
+    progress.style.width = Math.min(100, (elapsed / target) * 100) + "%";
+    progress.style.background = remain < 0 ? "var(--stage-warning)" : "var(--stage-accent)";
+    raf = requestAnimationFrame(tick);
+    return;
+  }
+  if (playing) {
+    if (lastTs != null) {
+      // manual scrub while playing (wheel / arrows) → re-sync time to position
+      if (Math.abs(scroller.scrollTop - lastApplied) > 0.5) scrollT = timeAt(scroller.scrollTop);
+      scrollT += (ts - lastTs) / 1000;
+    } else {
+      scrollT = timeAt(scroller.scrollTop); // resume from wherever we sit
+    }
+    lastTs = ts;
+    scroller.scrollTop = posAt(scrollT);
+    lastApplied = scroller.scrollTop;
+    updateHud();
+    if (scrollT >= getSchedule().total) setPlaying(false);
+  }
+  if (playing) raf = requestAnimationFrame(tick);
+}
+function showBeat(i) {
+  current = Math.max(0, Math.min(BEATS.length - 1, i));
+  const b = BEATS[current];
+  single.querySelector(".meta").innerHTML =
+    `${current + 1} / ${BEATS.length}${b.label ? ` — ${esc(b.label)}` : ""} — <b>${beatDur(b).toFixed(1)}s</b>`;
+  single.querySelector("p").textContent = b.text;
+  beatStart = performance.now();
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+function setMode(toBeat) {
+  beatMode = toBeat;
+  modeBtn.textContent = beatMode ? "Scroll mode" : "Beat mode";
+  scroller.style.display = beatMode ? "none" : "block";
+  eyeline.style.display = beatMode ? "none" : "block";
+  hud.style.display = beatMode ? "none" : "block";
+  single.style.display = beatMode ? "flex" : "none";
+  playBtn.style.display = beatMode ? "none" : "";
+  if (beatMode) { setPlaying(false); showBeat(current); }
+  else { scrollT = timeAt(scroller.scrollTop); updateHud(); }
+}
+
+playBtn.onclick = () => setPlaying(!playing);
+modeBtn.onclick = () => setMode(!beatMode);
+mirrorBtn.onclick = () => {
+  const on = stage.classList.toggle("mirrored");
+  mirrorBtn.setAttribute("aria-pressed", String(on));
+};
+document.getElementById("full").onclick = () =>
+  document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+sizeInput.oninput = () => { stage.style.fontSize = sizeInput.value + "px"; scheduleDirty = true; };
+wpmInput.oninput = () => { fitInput.value = ""; refreshTotals(); };
+// "fit to time": type m:ss (or seconds) and the rate is back-solved so the
+// whole talk lands on that duration. wpm = spokenWords * 60 / (target − holds).
+fitInput.onchange = () => {
+  const raw = fitInput.value.trim();
+  if (!raw) return;
+  const m = raw.match(/^(\d+):(\d{1,2})$/);
+  const target = m ? +m[1] * 60 + +m[2] : parseFloat(raw);
+  if (!target || target <= totalHold || totalWords === 0) { fitInput.value = ""; return; }
+  const solved = totalWords * 60 / (target - totalHold);
+  wpmInput.value = Math.round(Math.min(240, Math.max(60, solved)));
+  refreshTotals();
+};
+window.addEventListener("resize", () => { scheduleDirty = true; });
+scroller.addEventListener("scroll", () => {
+  if (!playing && !beatMode) { scrollT = timeAt(scroller.scrollTop); updateHud(); }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key;
+  if (k === " ") { e.preventDefault(); beatMode ? showBeat(current + 1) : setPlaying(!playing); }
+  else if (k === "ArrowUp") { e.preventDefault(); wpmInput.value = +wpmInput.value + 5; wpmInput.oninput(); }
+  else if (k === "ArrowDown") { e.preventDefault(); wpmInput.value = +wpmInput.value - 5; wpmInput.oninput(); }
+  else if (k === "ArrowRight") { beatMode ? showBeat(current + 1) : (scroller.scrollTop += 120); }
+  else if (k === "ArrowLeft") { beatMode ? showBeat(current - 1) : (scroller.scrollTop -= 120); }
+  else if (k === "Home") {
+    e.preventDefault();
+    if (beatMode) showBeat(0);
+    else { setPlaying(false); scrollT = 0; scroller.scrollTop = posAt(0); updateHud(); }
+  }
+  else if (k === "m") mirrorBtn.onclick();
+  else if (k === "b") setMode(!beatMode);
+  else if (k === "f") document.getElementById("full").onclick();
+});
+
+refreshTotals();
+setMode(false);
+</script>
+</body>
+</html>

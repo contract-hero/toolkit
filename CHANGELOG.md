@@ -4,6 +4,25 @@ All notable changes to the `toolkit` plugin are documented in this file. The for
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
+### Added
+
+- **`teleprompter` skill** — turns any text (Markdown file, speech draft, deck
+  speaker notes, or pasted prose) into a self-contained HTML teleprompter for
+  timing and delivering a live talk. Segments the source into sentence-sized
+  spoken beats (headings → dimmed section labels, `[pause]`/`…` cues → silent
+  hold beats), then injects them into the bundled `template.html` engine. The
+  engine estimates each beat's duration from `words / wpm * 60` at an adjustable
+  speaking rate and drives a time-synced autoscroll — each beat's block crosses
+  the eye-line arrow in exactly its estimated slot, so reading the line at the
+  arrow *is* speaking at the chosen rate (the timing-aware scroll model proven in
+  the memwal video teleprompter, generalized from fixed measured targets to a
+  live WPM estimate). Adds a beat-by-beat countdown mode, a "fit to a target
+  time" box that back-solves WPM from a `m:ss` goal, a running clock + per-beat
+  countdown HUD, and mirror/fullscreen for beam-splitter prompter rigs. Output is
+  one double-click-openable `.html` file (inline CSS/JS, no network).
+
 ## [0.5.0] - 2026-07-03
 
 ### Added
